@@ -1,0 +1,105 @@
+
+import gpiod
+import time
+import spidev
+import random
+
+bus = 0
+device = 1
+spi = spidev.SpiDev()
+#SLAVE ONE CS
+slave_1=24
+slave_chip_1=gpiod.Chip('gpiochip4')
+slave_1_line = slave_chip_1.get_line(slave_1)
+slave_1_line.request(consumer='slave_1',type=gpiod.LINE_REQ_DIR_OUT)
+#SLAVE TWO CS
+slave_2=23
+slave_chip_2=gpiod.Chip('gpiochip4')
+slave_2_line = slave_chip_2.get_line(slave_2)
+slave_2_line.request(consumer='slave_2',type=gpiod.LINE_REQ_DIR_OUT)
+# Open a connection to a specific bus and device (chip select pin)
+spi.open(bus, device)
+i=0
+# Set SPI speed and mode
+spi.max_speed_hz = 2000000
+spi.mode = 0
+checksum=0
+flop =0
+telegram_inbound = []
+
+start_bit = 57005
+slave_id = 4660
+telegram_length = 9
+function_call = 401
+packet_id = 5472
+
+
+
+while True:
+
+    flop = abs(flop - 1)
+
+
+      
+        
+    for i in [0,1,2]:
+        if i == 1:
+            function_call = 4015
+            message_bit_0 = int(12)
+            message_bit_1 = int(i)
+            message_bit_2 = int(30000)
+            message_bit_3 = int(flop)
+            message_bit_4 = int(200)
+            message_bit_5 = int(0)
+            message_bit_6 = random.randint(0,5)
+            message_bit_7 = random.randint(0,5)
+        elif i == 2:
+            function_call = 4015
+            message_bit_0 = int(12)
+            message_bit_1 = int(i)
+            message_bit_2 = int(5000)
+            message_bit_3 = int(flop)
+            message_bit_4 = int(1200)
+            message_bit_5 = int(0)
+            message_bit_6 = random.randint(0,5)
+            message_bit_7 = random.randint(0,5)
+            
+        else:
+            function_call = 4015
+            message_bit_0 = int(12)
+            message_bit_1 = int(i)
+            message_bit_2 = int(10000)
+            message_bit_3 = int(flop)
+            message_bit_4 = int(600)
+            message_bit_5 = int(0)
+            message_bit_6 = random.randint(0,5)
+            message_bit_7 = random.randint(0,5)
+
+        telegram_message=[start_bit,slave_id,telegram_length,function_call,packet_id,message_bit_0,message_bit_1,message_bit_2,message_bit_3,message_bit_4,message_bit_5,message_bit_6,message_bit_7]
+        telegram_message_8_bit = []
+        for i in range(13):
+            if i>3:
+                checksum ^= telegram_message[i]
+        telegram_message.append(checksum)
+        for i in telegram_message:
+            telegram_message_8_bit.append(int(i) >> 8)
+            telegram_message_8_bit.append(int(i) & 0b0000000011111111)
+
+
+        try:
+            spi.open(bus, device)
+            slave_1_line.set_value(0)
+            spi.writebytes(telegram_message_8_bit)
+            telegram_inbound = spi.readbytes(20)
+            del telegram_inbound[:4]
+            print(telegram_inbound,"slave 1")
+            slave_1_line.set_value(1)
+            spi.close()
+            checksum=0
+            telegram_message_8_bit=[]
+            spi.close()
+
+            
+        finally:
+            spi.close()
+    time.sleep(20)
