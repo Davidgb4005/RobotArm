@@ -1,0 +1,134 @@
+int bit1 = 1;
+int bit2 = 5;
+int bit3 = 10;
+int bit4 = 15;
+int bit5 = 20;
+int bit6 = 25;
+int bit7 = 30;
+int bit8 = 35;
+
+#include "Stepper_lib.h"
+#include "SPI_MSTransfer_T4.h"
+SPI_MSTransfer_T4<&SPI, 0x1234> mySPI;
+int test = 0;
+int steps_atc = 0;
+int revs;
+int enc;
+int flip;
+
+float current;
+
+int fw_limit_base_pin = 0;
+int bw_limit_base_pin = 1;
+int fw_limit_base = 1;
+int bw_limit_base = 1;
+int one_shot;
+
+
+int data_1 = 0;
+int data_2 = 0;
+int data_3 = 0;
+int data_4 = 0;
+int data_5 = 0;
+int data_6 = 0;
+
+int command_block = 0;
+int motor_select = 0;
+int ramp_block = 0;
+int dir_block = 0;
+int step_block = 0;
+int speed_block = 0;
+
+stepper_motor motor[4];
+
+void setup() {
+  motor[0].PinSet(15, 16, 23, 14, 19000);
+  motor[1].PinSet(15, 17, 20, 14, 19000);
+  motor[2].PinSet(7, 6, 3, 12, 19000);
+  motor[3].PinSet(7, 5, 4, 11, 19000);
+  Serial.begin(9600);
+  motor[3].setSlave(motor[2], 1);
+  motor[0].overrideON();
+  motor[1].overrideON();
+  motor[2].overrideON();
+  motor[3].overrideON();
+  mySPI.onTransfer(myCB);
+  mySPI.begin();
+}
+void loop() {
+  mySPI.events();
+
+
+  if (command_block == 12) {
+    motor[motor_select].setDrive(step_block, dir_block, speed_block, ramp_block);
+
+    command_block = 0;
+    motor_select = 0;
+    data_1 = 0;
+    data_2 = 0;
+    data_3 = 0;
+    data_4 = 0;
+    data_5 = 0;
+    data_6 = 0;
+  }
+  if (command_block == 11) {
+    motor[motor_select].homming();
+  }
+  if (command_block == 10) {
+
+    motor[motor_select].overrideON();
+    command_block = 0;
+    motor_select = 0;
+    data_1 = 0;
+    data_2 = 0;
+    data_3 = 0;
+    data_4 = 0;
+    data_5 = 0;
+    data_6 = 0;
+  }
+  if (command_block == 9) {
+
+    motor[motor_select].overrideOFF();
+    command_block = 0;
+    motor_select = 0;
+    data_1 = 0;
+    data_2 = 0;
+    data_3 = 0;
+    data_4 = 0;
+    data_5 = 0;
+    data_6 = 0;
+  }
+
+  motor[0].drive_motor();
+  motor[1].drive_motor();
+  motor[2].drive_motor();
+  motor[3].drive_motor();
+}
+
+
+void myCB(uint16_t *buffer, uint16_t length, AsyncMST info) {
+  for (int i = 0; i < length; i++) {
+    Serial.print(buffer[i], DEC);
+    Serial.println("   ");
+  }
+  command_block = buffer[0];
+  motor_select = buffer[1];
+  data_1 = buffer[2];
+  data_2 = buffer[3];
+  data_3 = buffer[4];
+  data_4 = buffer[5];
+  data_5 = buffer[6];
+  data_6 = buffer[7];
+  step_block = data_1;
+  dir_block = data_2;
+  speed_block = data_3;
+  ramp_block = data_4;
+  bit1 = random(10, 10);
+  bit2 = random(1, 1);
+  bit3 = random(12, 12);
+  bit4 = random(0, 13);
+  bit5 = random(0, 13);
+  bit6 = random(0, 13);
+  bit7 = random(0, 13);
+  bit8 = random(0, 13);
+}
