@@ -1,105 +1,80 @@
-
 import gpiod
 import time
 import spidev
 import random
 
-bus = 0
-device = 1
-spi = spidev.SpiDev()
-#SLAVE ONE CS
-slave_1=24
-slave_chip_1=gpiod.Chip('gpiochip4')
-slave_1_line = slave_chip_1.get_line(slave_1)
-slave_1_line.request(consumer='slave_1',type=gpiod.LINE_REQ_DIR_OUT)
-#SLAVE TWO CS
-slave_2=23
-slave_chip_2=gpiod.Chip('gpiochip4')
-slave_2_line = slave_chip_2.get_line(slave_2)
-slave_2_line.request(consumer='slave_2',type=gpiod.LINE_REQ_DIR_OUT)
-# Open a connection to a specific bus and device (chip select pin)
-spi.open(bus, device)
-i=0
-# Set SPI speed and mode
-spi.max_speed_hz = 2000000
-spi.mode = 0
-checksum=0
-flop =0
-telegram_inbound = []
-
-start_bit = 57005
-slave_id = 4660
-telegram_length = 9
-function_call = 401
-packet_id = 5472
-
-
-
-while True:
-
-    flop = abs(flop - 1)
-
-
-      
+class SpiToTeensy:
+    def __init__(self, cs_pin,spi_instance):
         
-    for i in [0,1,2]:
-        if i == 1:
-            function_call = 4015
-            message_bit_0 = int(12)
-            message_bit_1 = int(i)
-            message_bit_2 = int(30000)
-            message_bit_3 = int(flop)
-            message_bit_4 = int(200)
-            message_bit_5 = int(0)
-            message_bit_6 = random.randint(0,5)
-            message_bit_7 = random.randint(0,5)
-        elif i == 2:
-            function_call = 4015
-            message_bit_0 = int(12)
-            message_bit_1 = int(i)
-            message_bit_2 = int(5000)
-            message_bit_3 = int(flop)
-            message_bit_4 = int(1200)
-            message_bit_5 = int(0)
-            message_bit_6 = random.randint(0,5)
-            message_bit_7 = random.randint(0,5)
-            
-        else:
-            function_call = 4015
-            message_bit_0 = int(12)
-            message_bit_1 = int(i)
-            message_bit_2 = int(10000)
-            message_bit_3 = int(flop)
-            message_bit_4 = int(600)
-            message_bit_5 = int(0)
-            message_bit_6 = random.randint(0,5)
-            message_bit_7 = random.randint(0,5)
+        self.ChipSelectPin = cs_pin
+        self.ChipSelect = gpiod.Chip('gpiochip4')
+        self.SlaveLine = self.ChipSelect.get_line(self.ChipSelectPin)
+        self.start_bit = 57005
+        self.slave_id = 4660
+        self.telegram_length = 9
+        self.function_call = 4015
+        self.packet_id = 5472
+        self.checksum = 0
+        self.bus = 0
+        self.device = 1
+        self.spi = spi_instance
+        self.telegram_message_8_bit
+        self.telegram_message_full_size
+        self.telegram_inbound = []
+    def SPI_setup(self):
+        self.SlaveLine.request(consumer='slave_2', type=gpiod.LINE_REQ_DIR_OUT)
+        self.spi.open(self.bus, self.device)
+        self.spi.max_speed_hz = 2000000
+        self.spi.mode = 0
+        self.checksum = 0
+        self.telegram_inbound = []
 
-        telegram_message=[start_bit,slave_id,telegram_length,function_call,packet_id,message_bit_0,message_bit_1,message_bit_2,message_bit_3,message_bit_4,message_bit_5,message_bit_6,message_bit_7]
-        telegram_message_8_bit = []
+    def SPI_send(self,command,motor,stepbyte1,stepbyte2,direction,speed,ramp,spare):
+        function_call = 4015
+        message_bit =[]
+        message_bit[0] = command
+        message_bit[1] = motor
+        message_bit[2] = stepbyte1
+        message_bit[3] = stepbyte2
+        message_bit[4] = direction
+        message_bit[5] = speed
+        message_bit[6] = ramp
+        message_bit[7] = spare
+        telegram_construct(message_bit)
+        
+    def telegram_construct(self,user_data):
+        self.telegram_message_full_size = [self.start_bit, self.slave_id, self.telegram_length, self.function_call, self.packet_id, user_data[0],
+                            user_data[1], user_data[2], user_data[3], user_data[4], user_data[5], user_data[6],user_data[7]]
+        
+    def telegram_checksum(self,):
         for i in range(13):
-            if i>3:
-                checksum ^= telegram_message[i]
-        telegram_message.append(checksum)
-        for i in telegram_message:
-            telegram_message_8_bit.append(int(i) >> 8)
-            telegram_message_8_bit.append(int(i) & 0b0000000011111111)
-
-
+            if i > 3:
+                self.checksum ^= self.telegram_message_full_size[i]
+        self.telegram_message_full_size.append(self.checksum)
+        for i in self.telegram_message_full_size:
+            self.telegram_message_8_bit.append(int(i) >> 8)
+            self.telegram_message_8_bit.append(int(i) & 0b0000000011111111)
+    def telegram_send(self,telegram):
         try:
-            spi.open(bus, device)
-            slave_1_line.set_value(0)
-            spi.writebytes(telegram_message_8_bit)
-            telegram_inbound = spi.readbytes(20)
-            del telegram_inbound[:4]
-            print(telegram_inbound,"slave 1")
-            slave_1_line.set_value(1)
-            spi.close()
-            checksum=0
-            telegram_message_8_bit=[]
-            spi.close()
+            self.spi.open(self.bus, self.device)
+            self.SlaveLine.set_value(0)
+            self.spi.writebytes(telegram)
+            self.telegram_inbound = self.spi.readbytes(20)
+            del self.telegram_inbound[:4]
+            print(self.telegram_inbound, "slave 1")
+            self.SlaveLine.set_value(1)
+            self.spi.close()
+            self.checksum = 0
+            telegram_message_8_bit = []
 
-            
-        finally:
-            spi.close()
-    time.sleep(20)
+        
+    
+# Example of using the class template
+if __name__ == "__main__":
+    # Creating an instance of TemplateClass
+    my_object = TemplateClass("Sample", 10)
+    my_object.display_info()  # Output: Name: Sample, Value: 10
+
+    # Updating the value
+    my_object.update_value(20)
+    my_object.display_info()  # Output: Name: Sample, Value: 20
