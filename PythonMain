@@ -18,8 +18,8 @@ class SpiToTeensy:
         self.bus = 0
         self.device = 1
         self.spi = spi_instance
-        self.telegram_message_8_bit
-        self.telegram_message_full_size
+        self.telegram_message_8_bit=[]
+        self.telegram_message_full_size=[]
         self.telegram_inbound = []
     def SPI_setup(self):
         self.SlaveLine.request(consumer='slave_2', type=gpiod.LINE_REQ_DIR_OUT)
@@ -29,13 +29,13 @@ class SpiToTeensy:
         self.checksum = 0
         self.telegram_inbound = []
 
-    def SPI_send(self,command,motor,stepbyte1,stepbyte2,direction,speed,ramp,spare):
+    def SPI_send(self,command,motor,step,direction,speed,ramp,spare):
         function_call = 4015
-        message_bit =[]
+        message_bit =[0,0,0,0,0,0,0,0]
         message_bit[0] = command
         message_bit[1] = motor
-        message_bit[2] = stepbyte1
-        message_bit[3] = stepbyte2
+        message_bit[2] = int(step)
+        message_bit[3] = int(step>>16)
         message_bit[4] = direction
         message_bit[5] = speed
         message_bit[6] = ramp
@@ -46,7 +46,7 @@ class SpiToTeensy:
         self.telegram_message_full_size = [self.start_bit, self.slave_id, self.telegram_length, self.function_call, self.packet_id, user_data[0],
                             user_data[1], user_data[2], user_data[3], user_data[4], user_data[5], user_data[6],user_data[7]]
         
-    def telegram_checksum(self,):
+    def telegram_checksum(self):
         for i in range(13):
             if i > 3:
                 self.checksum ^= self.telegram_message_full_size[i]
@@ -54,7 +54,8 @@ class SpiToTeensy:
         for i in self.telegram_message_full_size:
             self.telegram_message_8_bit.append(int(i) >> 8)
             self.telegram_message_8_bit.append(int(i) & 0b0000000011111111)
-    def telegram_send(self,telegram):
+        telegram_send()
+    def telegram_send(self):
         try:
             self.spi.open(self.bus, self.device)
             self.SlaveLine.set_value(0)
@@ -66,15 +67,15 @@ class SpiToTeensy:
             self.spi.close()
             self.checksum = 0
             telegram_message_8_bit = []
+                        
+        finally:
+            spi.close()
 
         
     
 # Example of using the class template
 if __name__ == "__main__":
-    # Creating an instance of TemplateClass
-    my_object = TemplateClass("Sample", 10)
-    my_object.display_info()  # Output: Name: Sample, Value: 10
-
-    # Updating the value
-    my_object.update_value(20)
-    my_object.display_info()  # Output: Name: Sample, Value: 20
+    spi = spidev.SpiDev()
+    controller_1 = SpiToTeensy(23,spi)
+    controller_1.SPI_setup()
+    controller_1.SPI_send(12,0,10000,1,200,1,0)
