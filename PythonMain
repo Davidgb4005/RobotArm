@@ -12,6 +12,7 @@ class SpiToTeensy:
         self.function_call = 4015
         self.packet_id = 5472
         self.checksum = 0
+        self.spi = spi_instance
         self.telegram_message_8_bit = []
         self.telegram_message_full_size = []
         self.telegram_inbound = []
@@ -31,7 +32,10 @@ class SpiToTeensy:
 #Build Telegram
         self.telegram_message_full_size = [
             self.start_bit, self.slave_id, self.telegram_length,
-            self.function_call, self.packet_id, message_bit]
+            self.function_call, self.packet_id,
+            *message_bit
+        ]
+
 # CHECK SUM
         self.checksum = 0
         for i in range(13):
@@ -44,24 +48,27 @@ class SpiToTeensy:
             self.telegram_message_8_bit.append(i >> 8)
             self.telegram_message_8_bit.append(i & 0xFF)
 #Send Telegram
+            spi.open(bus,device)
         try:
             self.ChipSelectIO.set_value(0)
             spi.writebytes(self.telegram_message_8_bit)  # Use xfer2 to send and receive in one call
-            self.telegram_inbound = spi.readbytes(20)
+            self.telegram_inbound = self.spi.readbytes(20)
             del self.telegram_inbound[:4]
             print(self.telegram_inbound, "slave 1")
             self.ChipSelectIO.set_value(1)
         finally:
-            self.spi.close()
+            spi.close()
 
 
 # Example of using the class
 if __name__ == "__main__":
     spi = spidev.SpiDev()
     bus = 0
-    spi.device = 1
+    device = 1
+    spi.open(bus,device)
     spi.max_speed_hz = 2000000
     spi.mode = 0
+    spi.close()
 
     controller_1 = SpiToTeensy(23, spi)
-    controller_1.SPI_send(12, 0, 10000, 1, 200, 1, 0)
+    controller_1.SPI_send(12, 1, 5663, 1, 200, 1, 0)
