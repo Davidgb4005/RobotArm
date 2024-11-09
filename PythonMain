@@ -22,13 +22,14 @@ class SpiToTeensy:
         self.ChipSelectIO.request(consumer='cs_pin', type=gpiod.LINE_REQ_DIR_OUT)
 
         # Open SPI connection on specified bus and device only once
-        self.spi.open(self.bus, self.device)
-        self.spi.max_speed_hz = 2000000
-        self.spi.mode = 0
+
 
 
 
     def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
+        self.spi.open(self.bus, self.device)
+        self.spi.max_speed_hz = 2000000
+        self.spi.mode = 0
         self.message_bit[0] = command
         self.message_bit[1] = motor
         self.message_bit[2] = int(step)
@@ -82,9 +83,10 @@ class Motor:
         self.motor = motor
         self.SPI_controller = SPI_controller
     def DriveMotor(self):
-        self.SPI_controller.SPI_send(command=12, motor=self.motor,direction=self.motor_direction, speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare, step=self.motor_step)
-        self.ResetInput()
         self.SPI_controller.close_spi()
+        self.SPI_controller.SPI_send(command=12, motor=self.motor,direction=self.motor_direction, speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare, step=self.motor_step)
+        self.SPI_controller.close_spi()
+        self.ResetInput()
     def ResetInput(self):
         self.motor_spare = 0
         self.motor_speed = 0
@@ -94,32 +96,37 @@ class Motor:
     def SetInput(self,speed,step,ramp):
         self.motor_speed = speed
         self.motor_ramp = ramp
-        self.motor_step = step
-        if speed>0:
+        self.motor_step = abs(step)
+        if step>0:
             self.motor_direction = 0
         else:
-            self.motor_direction = 0
+            self.motor_direction = 1
 
 
 # Example of using the class
 if __name__ == "__main__":
     # Open SPI to Board 1
     controller1 = SpiToTeensy(cs_pin=24, bus=0, device=1)
+    controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
+    
     MotorKnuckle = Motor(0, 200000, SPI_controller=controller1)
-
+    SecondRotate = Motor(1, 200000, SPI_controller=controller1)
+    MainPivot = Motor(2, 200000, SPI_controller=controller2)
     # Final Knuckle - Full Rev = 200000 -Direction CCW = 1
-    MotorKnuckle.SetInput(200, 30000, 100)
+    MotorKnuckle.SetInput(200, 5000, 100)
     MotorKnuckle.DriveMotor()
     # 2nd Arm Rotate - Full Rev = 68500 -Direction CCW = 1
+    SecondRotate.SetInput(200, 3000, 100)
+    SecondRotate.DriveMotor()
     #controller1.SPI_send(command=12, motor=1, step=5000, speed=500, ramp=1000, spare=0)
     # Main Pivot - Full Rev = 170000 -Direction CCW = 1
     #controller1.SPI_send(command=12, motor=2, step=0000,  speed=200, ramp=1, spare=0)
     # Close SPI
-    controller1.close_spi()
 
     # Open SPI to Board 2
     #controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
     # Base Pivot- Full Rev = 247000 -Direction CW = 1
-    #controller2.SPI_send(command=12, motor=2, step=100000,  speed=200, ramp=1, spare=0)
+    MainPivot.SetInput(200, -30000, 100)
+    MainPivot.DriveMotor()
     # Close SPI
     #controller2.close_spi()
