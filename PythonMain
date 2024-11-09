@@ -2,7 +2,7 @@ import gpiod
 import spidev
 
 class SpiToTeensy:
-    def __init__(self, cs_pin, bus, device):
+    def __init__(self, cs_pin, bus, device, motor):
         self.ChipSelectPin = cs_pin
         self.ChipSelectIO = gpiod.Chip('gpiochip4').get_line(self.ChipSelectPin)
         self.start_bit = 57005
@@ -14,6 +14,9 @@ class SpiToTeensy:
         self.spi = spidev.SpiDev()
         self.bus = bus
         self.device = device
+        self.motor = motor
+        self.message_bit = [0] * 8  # Initialize message_bit as a class variable
+        self.message_bit[1] = self.motor  # Set motor number in message_bit[1]
         self.telegram_message_8_bit = []
         self.telegram_message_full_size = []
         self.telegram_inbound = []
@@ -24,22 +27,21 @@ class SpiToTeensy:
         self.spi.max_speed_hz = 2000000
         self.spi.mode = 0
 
-    def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
-        message_bit = [0] * 8
-        message_bit[0] = command
-        message_bit[1] = motor
-        message_bit[2] = int(step)
-        message_bit[3] = int(step >> 16)
-        message_bit[4] = direction
-        message_bit[5] = speed
-        message_bit[6] = ramp
-        message_bit[7] = spare
+    def SPI_send(self, command, step, direction, speed, ramp, spare):
+        # Update message_bit with command and other parameters
+        self.message_bit[0] = command
+        self.message_bit[2] = int(step)
+        self.message_bit[3] = int(step >> 16)
+        self.message_bit[4] = direction
+        self.message_bit[5] = speed
+        self.message_bit[6] = ramp
+        self.message_bit[7] = spare
 
         # Build Telegram
         self.telegram_message_full_size = [
             self.start_bit, self.slave_id, self.telegram_length,
             self.function_call, self.packet_id,
-            *message_bit
+            *self.message_bit
         ]
 
         # CHECKSUM
@@ -68,9 +70,9 @@ class SpiToTeensy:
 
 # Example of using the class
 if __name__ == "__main__":
-    controller_1 = SpiToTeensy(23, bus=0, device=1)
-    controller_1.SPI_send(12, 1, 5663, 1, 200, 1, 0)
+    controller_1 = SpiToTeensy(cs_pin=23, bus=0, device=1, motor=1)
+    controller_1.SPI_send(command=12, step=5663, direction=1, speed=200, ramp=1, spare=0)
 
-    # Instantiate a second controller if needed
-    controller_2 = SpiToTeensy(24, bus=0, device=1)
-    controller_2.SPI_send(12, 2, 1234, 0, 150, 1, 0)
+    # Instantiate a second controller with a different motor number
+    controller_2 = SpiToTeensy(cs_pin=24, bus=0, device=1, motor=2)
+    controller_2.SPI_send(command=12, step=1234, direction=0, speed=150, ramp=1, spare=0)
