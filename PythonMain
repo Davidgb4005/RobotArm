@@ -1,6 +1,6 @@
 import gpiod
 import spidev
-
+import time
 
 class SpiToTeensy:
     def __init__(self, cs_pin, bus, device):
@@ -15,21 +15,19 @@ class SpiToTeensy:
         self.spi = spidev.SpiDev()
         self.bus = bus
         self.device = device
-        self.message_bit = [0] * 8  # Initialize message_bit as a class variable
+        self.message_bit = [0] * 8
         self.telegram_message_8_bit = []
         self.telegram_message_full_size = []
         self.telegram_inbound = []
         self.ChipSelectIO.request(consumer='cs_pin', type=gpiod.LINE_REQ_DIR_OUT)
 
-        # Open SPI connection on specified bus and device only once
-
-
-
-
-    def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
+    def open_spi(self):
         self.spi.open(self.bus, self.device)
         self.spi.max_speed_hz = 2000000
         self.spi.mode = 0
+
+    def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
+        self.open_spi()
         self.message_bit[0] = command
         self.message_bit[1] = motor
         self.message_bit[2] = int(step)
@@ -39,35 +37,33 @@ class SpiToTeensy:
         self.message_bit[6] = ramp
         self.message_bit[7] = spare
 
-
-
-        # Build Telegram
         self.telegram_message_full_size = [
             self.start_bit, self.slave_id, self.telegram_length,
             self.function_call, self.packet_id,
             *self.message_bit
         ]
 
-        # CHECKSUM
         self.checksum = 0
         for i in range(13):
             if i > 3:
                 self.checksum ^= self.telegram_message_full_size[i]
         self.telegram_message_full_size.append(self.checksum)
 
-        # Convert to 8-bit format
         self.telegram_message_8_bit = []
         for value in self.telegram_message_full_size:
             self.telegram_message_8_bit.append(value >> 8)
             self.telegram_message_8_bit.append(value & 0xFF)
 
-        # Send Telegram
-        self.ChipSelectIO.set_value(0)  # Activate chip select
+        self.ChipSelectIO.set_value(0)
         self.spi.writebytes(self.telegram_message_8_bit)
         self.telegram_inbound = self.spi.readbytes(20)
         del self.telegram_inbound[:4]
         print(self.telegram_inbound, f"slave on pin {self.ChipSelectPin}, motor {motor}")
-        self.ChipSelectIO.set_value(1)  # Deactivate chip select
+        self.ChipSelectIO.set_value(1)
+
+        self.close_spi()
+        time.sleep(0.1)  # Optional: short delay to avoid overlapping SPI operations
+
     def close_spi(self):
         self.spi.close()
 
@@ -82,51 +78,42 @@ class Motor:
         self.motor_direction = 0
         self.motor = motor
         self.SPI_controller = SPI_controller
+
     def DriveMotor(self):
-        self.SPI_controller.close_spi()
-        self.SPI_controller.SPI_send(command=12, motor=self.motor,direction=self.motor_direction, speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare, step=self.motor_step)
-        self.SPI_controller.close_spi()
+        self.SPI_controller.SPI_send(
+            command=12, motor=self.motor, direction=self.motor_direction,
+            speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare,
+            step=self.motor_step
+        )
         self.ResetInput()
+
     def ResetInput(self):
         self.motor_spare = 0
         self.motor_speed = 0
         self.motor_ramp = 0
         self.motor_step = 0
         self.motor_direction = 0
-    def SetInput(self,speed,step,ramp):
+
+    def SetInput(self, speed, step, ramp):
         self.motor_speed = speed
         self.motor_ramp = ramp
         self.motor_step = abs(step)
-        if step>0:
-            self.motor_direction = 0
-        else:
-            self.motor_direction = 1
-
+        self.motor_direction = 0 if step > 0 else 1
 
 # Example of using the class
 if __name__ == "__main__":
-    # Open SPI to Board 1
-    controller1 = SpiToTeensy(cs_pin=24, bus=0, device=1)
+    controller1 = SpiToTeensy(cs_pin=24, bus=0, device=0)
     controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
     
     MotorKnuckle = Motor(0, 200000, SPI_controller=controller1)
     SecondRotate = Motor(1, 200000, SPI_controller=controller1)
     MainPivot = Motor(2, 200000, SPI_controller=controller2)
-    # Final Knuckle - Full Rev = 200000 -Direction CCW = 1
+
     MotorKnuckle.SetInput(200, 5000, 100)
     MotorKnuckle.DriveMotor()
-    # 2nd Arm Rotate - Full Rev = 68500 -Direction CCW = 1
+    
     SecondRotate.SetInput(200, 3000, 100)
     SecondRotate.DriveMotor()
-    #controller1.SPI_send(command=12, motor=1, step=5000, speed=500, ramp=1000, spare=0)
-    # Main Pivot - Full Rev = 170000 -Direction CCW = 1
-    #controller1.SPI_send(command=12, motor=2, step=0000,  speed=200, ramp=1, spare=0)
-    # Close SPI
-
-    # Open SPI to Board 2
-    #controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
-    # Base Pivot- Full Rev = 247000 -Direction CW = 1
+    
     MainPivot.SetInput(200, -30000, 100)
     MainPivot.DriveMotor()
-    # Close SPI
-    #controller2.close_spi()
