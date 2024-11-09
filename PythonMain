@@ -27,7 +27,6 @@ class SpiToTeensy:
         self.spi.mode = 0
 
     def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
-        self.open_spi()
         self.message_bit[0] = command
         self.message_bit[1] = motor
         self.message_bit[2] = int(step)
@@ -104,16 +103,20 @@ class Motor:
 if __name__ == "__main__":
     controller1 = SpiToTeensy(cs_pin=24, bus=0, device=0)
     controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
-    
     MotorKnuckle = Motor(0, 200000, SPI_controller=controller1)
     SecondRotate = Motor(1, 200000, SPI_controller=controller1)
     MainPivot = Motor(2, 200000, SPI_controller=controller2)
-
+    
+    controller1.open_spi()
     MotorKnuckle.SetInput(200, 5000, 100)
     MotorKnuckle.DriveMotor()
     
     SecondRotate.SetInput(200, 3000, 100)
     SecondRotate.DriveMotor()
+    controller1.close_spi()
     
+    controller2.open_spi()
     MainPivot.SetInput(200, -30000, 100)
     MainPivot.DriveMotor()
+    controller2.close_spi()
+
