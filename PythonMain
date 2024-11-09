@@ -1,5 +1,4 @@
 import gpiod
-import time
 import spidev
 
 class SpiToTeensy:
@@ -18,7 +17,6 @@ class SpiToTeensy:
         self.telegram_inbound = []
         self.ChipSelectIO.request(consumer='cs_pin', type=gpiod.LINE_REQ_DIR_OUT)
 
-
     def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
         message_bit = [0] * 8
         message_bit[0] = command
@@ -29,14 +27,14 @@ class SpiToTeensy:
         message_bit[5] = speed
         message_bit[6] = ramp
         message_bit[7] = spare
-#Build Telegram
+        # Build Telegram
         self.telegram_message_full_size = [
             self.start_bit, self.slave_id, self.telegram_length,
             self.function_call, self.packet_id,
             *message_bit
         ]
 
-# CHECK SUM
+        # CHECKSUM
         self.checksum = 0
         for i in range(13):
             if i > 3:
@@ -47,28 +45,24 @@ class SpiToTeensy:
         for i in self.telegram_message_full_size:
             self.telegram_message_8_bit.append(i >> 8)
             self.telegram_message_8_bit.append(i & 0xFF)
-#Send Telegram
-            spi.open(bus,device)
+
+        # Send Telegram
         try:
+            self.spi.open(0, 1)  # Assuming bus=0, device=1 as per the main setup
             self.ChipSelectIO.set_value(0)
-            spi.writebytes(self.telegram_message_8_bit)  # Use xfer2 to send and receive in one call
+            self.spi.writebytes(self.telegram_message_8_bit)
             self.telegram_inbound = self.spi.readbytes(20)
             del self.telegram_inbound[:4]
             print(self.telegram_inbound, "slave 1")
             self.ChipSelectIO.set_value(1)
         finally:
-            spi.close()
+            self.spi.close()
 
 
 # Example of using the class
 if __name__ == "__main__":
     spi = spidev.SpiDev()
-    bus = 0
-    device = 1
-    spi.open(bus,device)
     spi.max_speed_hz = 2000000
     spi.mode = 0
-    spi.close()
-
     controller_1 = SpiToTeensy(23, spi)
     controller_1.SPI_send(12, 1, 5663, 1, 200, 1, 0)
