@@ -65,18 +65,26 @@ class SpiToTeensy:
         self.ChipSelectIO.set_value(1)  # Deactivate chip select
 
     def close_spi(self):
-        """Close the SPI connection (call this once done with the instance)."""
         self.spi.close()
 
 # Example of using the class
 if __name__ == "__main__":
-    # Instantiate one controller for the shared SPI device on pin 24
-    controller = SpiToTeensy(cs_pin=24, bus=0, device=1)
+    # Open SPI to Board 1
+    controller1 = SpiToTeensy(cs_pin=24, bus=0, device=1)
+    # Final Knuckle - Full Rev = 200000 -Direction CCW = 1
+    controller1.SPI_send(command=12, motor=0, step=0000, direction=0, speed=200, ramp=1, spare=0)
+    # 2nd Arm Rotate - Full Rev = 68500 -Direction CCW = 1
+    controller1.SPI_send(command=12, motor=1, step=5000, direction=0, speed=500, ramp=1000, spare=0)
+    # Main Pivot - Full Rev = 170000 -Direction CCW = 1
+    controller1.SPI_send(command=12, motor=2, step=0000, direction=0, speed=200, ramp=1, spare=0)
+    # Close SPI
+    controller1.close_spi()
     
-    # Control multiple motors by calling SPI_send with different motor numbers
-    controller.SPI_send(command=12, motor=0, step=2000, direction=0, speed=500, ramp=1, spare=0)
-    controller.SPI_send(command=12, motor=1, step=4000, direction=0, speed=500, ramp=1, spare=0)
-    controller.SPI_send(command=12, motor=2, step=6000, direction=0, speed=500, ramp=1, spare=0)
+    # Open SPI to Board 2
+    controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
+    # Base Pivot- Full Rev = 247000 -Direction CW = 1
+    controller2.SPI_send(command=12, motor=2, step=100000, direction=0, speed=200, ramp=1, spare=0)
+    # Close SPI
+    controller2.close_spi()
 
-    # Close SPI connection when done
-    controller.close_spi()
+
