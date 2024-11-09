@@ -101,22 +101,29 @@ class Motor:
 
 # Example of using the class
 if __name__ == "__main__":
-    controller1 = SpiToTeensy(cs_pin=24, bus=0, device=0)
-    controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
-    MotorKnuckle = Motor(0, 200000, SPI_controller=controller1)
-    SecondRotate = Motor(1, 200000, SPI_controller=controller1)
-    MainPivot = Motor(2, 200000, SPI_controller=controller2)
-    
-    controller1.open_spi()
+    # Instantiate one SpiToTeensy controller
+    controller = SpiToTeensy(cs_pin=24, bus=0, device=0)
+
+    # Create Motor instances with the same SPI controller but different CS pins
+    MotorKnuckle = Motor(0, 200000, SPI_controller=controller)
+    SecondRotate = Motor(1, 200000, SPI_controller=controller)
+    MainPivot = Motor(2, 200000, SPI_controller=controller)
+
+    # First set of commands for MotorKnuckle and SecondRotate
+    controller.ChipSelectPin = 24
+    controller.open_spi()
     MotorKnuckle.SetInput(200, 5000, 100)
     MotorKnuckle.DriveMotor()
-    
+
     SecondRotate.SetInput(200, 3000, 100)
     SecondRotate.DriveMotor()
-    controller1.close_spi()
-    
-    controller2.open_spi()
+    controller.close_spi()
+
+    # Second set of commands for MainPivot
+    controller.ChipSelectPin = 23
+    controller.open_spi()
     MainPivot.SetInput(200, -30000, 100)
     MainPivot.DriveMotor()
-    controller2.close_spi()
+    controller.close_spi()
+
 
