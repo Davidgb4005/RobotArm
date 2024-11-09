@@ -28,7 +28,6 @@ class SpiToTeensy:
         self.spi.mode = 0
 
     def SPI_send(self, command, step, direction, speed, ramp, spare):
-        # Update message_bit with command and other parameters
         self.message_bit[0] = command
         self.message_bit[2] = int(step)
         self.message_bit[3] = int(step >> 16)
@@ -70,9 +69,13 @@ class SpiToTeensy:
 
 # Example of using the class
 if __name__ == "__main__":
-    controller_1 = SpiToTeensy(cs_pin=23, bus=0, device=1, motor=1)
+    controller_1 = SpiToTeensy(cs_pin=23, bus=0, device=1, motor=2)
     controller_1.SPI_send(command=12, step=5663, direction=1, speed=200, ramp=1, spare=0)
 
     # Instantiate a second controller with a different motor number
-    controller_2 = SpiToTeensy(cs_pin=24, bus=0, device=1, motor=2)
-    controller_2.SPI_send(command=12, step=1234, direction=0, speed=150, ramp=1, spare=0)
+    controller_2 = SpiToTeensy(cs_pin=24, bus=0, device=1, motor=0)
+    Controller_2.SPI_send(command=12, step=2000, direction=0, speed=500, ramp=1, spare=0)
+    controller_3 = SpiToTeensy(cs_pin=24, bus=0, device=1, motor=1)
+    controller_3.SPI_send(command=12, step=4000, direction=0, speed=500, ramp=1, spare=0)
+    controller_4 = SpiToTeensy(cs_pin=24, bus=0, device=1, motor=2)
+    controller_4.SPI_send(command=12, step=6000, direction=0, speed=500, ramp=1, spare=0)
