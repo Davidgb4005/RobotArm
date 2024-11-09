@@ -1,6 +1,7 @@
 import gpiod
 import spidev
 
+
 class SpiToTeensy:
     def __init__(self, cs_pin, bus, device):
         self.ChipSelectPin = cs_pin
@@ -25,16 +26,19 @@ class SpiToTeensy:
         self.spi.max_speed_hz = 2000000
         self.spi.mode = 0
 
+
+
     def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
-        # Set motor number in message_bit[1]
         self.message_bit[0] = command
-        self.message_bit[1] = motor  # Motor number is set here
+        self.message_bit[1] = motor
         self.message_bit[2] = int(step)
         self.message_bit[3] = int(step >> 16)
         self.message_bit[4] = direction
         self.message_bit[5] = speed
         self.message_bit[6] = ramp
         self.message_bit[7] = spare
+
+
 
         # Build Telegram
         self.telegram_message_full_size = [
@@ -63,28 +67,59 @@ class SpiToTeensy:
         del self.telegram_inbound[:4]
         print(self.telegram_inbound, f"slave on pin {self.ChipSelectPin}, motor {motor}")
         self.ChipSelectIO.set_value(1)  # Deactivate chip select
-
     def close_spi(self):
         self.spi.close()
+
+class Motor:
+    def __init__(self, motor, full_rev_step, SPI_controller):
+        self.motor_calc_position = 0
+        self.motor_driver_position = 0
+        self.motor_spare = 0
+        self.motor_speed = 0
+        self.motor_ramp = 0
+        self.motor_step = 0
+        self.motor_direction = 0
+        self.motor = motor
+        self.SPI_controller = SPI_controller
+    def DriveMotor(self):
+        self.SPI_controller.SPI_send(command=12, motor=self.motor,direction=self.motor_direction, speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare, step=self.motor_step)
+        self.ResetInput()
+        self.SPI_controller.close_spi()
+    def ResetInput(self):
+        self.motor_spare = 0
+        self.motor_speed = 0
+        self.motor_ramp = 0
+        self.motor_step = 0
+        self.motor_direction = 0
+    def SetInput(self,speed,step,ramp):
+        self.motor_speed = speed
+        self.motor_ramp = ramp
+        self.motor_step = step
+        if speed>0:
+            self.motor_direction = 0
+        else:
+            self.motor_direction = 0
+
 
 # Example of using the class
 if __name__ == "__main__":
     # Open SPI to Board 1
     controller1 = SpiToTeensy(cs_pin=24, bus=0, device=1)
+    MotorKnuckle = Motor(0, 200000, SPI_controller=controller1)
+
     # Final Knuckle - Full Rev = 200000 -Direction CCW = 1
-    controller1.SPI_send(command=12, motor=0, step=0000, direction=0, speed=200, ramp=1, spare=0)
+    MotorKnuckle.SetInput(200, 30000, 100)
+    MotorKnuckle.DriveMotor()
     # 2nd Arm Rotate - Full Rev = 68500 -Direction CCW = 1
-    controller1.SPI_send(command=12, motor=1, step=5000, direction=0, speed=500, ramp=1000, spare=0)
+    #controller1.SPI_send(command=12, motor=1, step=5000, speed=500, ramp=1000, spare=0)
     # Main Pivot - Full Rev = 170000 -Direction CCW = 1
-    controller1.SPI_send(command=12, motor=2, step=0000, direction=0, speed=200, ramp=1, spare=0)
+    #controller1.SPI_send(command=12, motor=2, step=0000,  speed=200, ramp=1, spare=0)
     # Close SPI
     controller1.close_spi()
-    
+
     # Open SPI to Board 2
-    controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
+    #controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
     # Base Pivot- Full Rev = 247000 -Direction CW = 1
-    controller2.SPI_send(command=12, motor=2, step=100000, direction=0, speed=200, ramp=1, spare=0)
+    #controller2.SPI_send(command=12, motor=2, step=100000,  speed=200, ramp=1, spare=0)
     # Close SPI
-    controller2.close_spi()
-
-
+    #controller2.close_spi()
