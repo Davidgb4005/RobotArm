@@ -2,7 +2,7 @@ import gpiod
 import spidev
 
 class SpiToTeensy:
-    def __init__(self, cs_pin, spi_instance):
+    def __init__(self, cs_pin, bus, device):
         self.ChipSelectPin = cs_pin
         self.ChipSelectIO = gpiod.Chip('gpiochip4').get_line(self.ChipSelectPin)
         self.start_bit = 57005
@@ -11,11 +11,18 @@ class SpiToTeensy:
         self.function_call = 4015
         self.packet_id = 5472
         self.checksum = 0
-        self.spi = spi_instance
+        self.spi = spidev.SpiDev()
+        self.bus = bus
+        self.device = device
         self.telegram_message_8_bit = []
         self.telegram_message_full_size = []
         self.telegram_inbound = []
         self.ChipSelectIO.request(consumer='cs_pin', type=gpiod.LINE_REQ_DIR_OUT)
+
+        # Open SPI connection on specified bus and device
+        self.spi.open(self.bus, self.device)
+        self.spi.max_speed_hz = 2000000
+        self.spi.mode = 0
 
     def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
         message_bit = [0] * 8
@@ -27,6 +34,7 @@ class SpiToTeensy:
         message_bit[5] = speed
         message_bit[6] = ramp
         message_bit[7] = spare
+
         # Build Telegram
         self.telegram_message_full_size = [
             self.start_bit, self.slave_id, self.telegram_length,
@@ -41,28 +49,28 @@ class SpiToTeensy:
                 self.checksum ^= self.telegram_message_full_size[i]
         self.telegram_message_full_size.append(self.checksum)
 
+        # Convert to 8-bit format
         self.telegram_message_8_bit = []
-        for i in self.telegram_message_full_size:
-            self.telegram_message_8_bit.append(i >> 8)
-            self.telegram_message_8_bit.append(i & 0xFF)
+        for value in self.telegram_message_full_size:
+            self.telegram_message_8_bit.append(value >> 8)
+            self.telegram_message_8_bit.append(value & 0xFF)
 
         # Send Telegram
         try:
-            self.spi.open(0, 1)  # Assuming bus=0, device=1 as per the main setup
             self.ChipSelectIO.set_value(0)
             self.spi.writebytes(self.telegram_message_8_bit)
             self.telegram_inbound = self.spi.readbytes(20)
             del self.telegram_inbound[:4]
-            print(self.telegram_inbound, "slave 1")
+            print(self.telegram_inbound, f"slave on pin {self.ChipSelectPin}")
             self.ChipSelectIO.set_value(1)
         finally:
             self.spi.close()
 
-
 # Example of using the class
 if __name__ == "__main__":
-    spi = spidev.SpiDev()
-    spi.max_speed_hz = 2000000
-    spi.mode = 0
-    controller_1 = SpiToTeensy(23, spi)
+    controller_1 = SpiToTeensy(23, bus=0, device=1)
     controller_1.SPI_send(12, 1, 5663, 1, 200, 1, 0)
+
+    # Instantiate a second controller if needed
+    controller_2 = SpiToTeensy(24, bus=0, device=1)
+    controller_2.SPI_send(12, 2, 1234, 0, 150, 1, 0)
