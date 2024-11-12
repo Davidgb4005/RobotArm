@@ -2,6 +2,8 @@ import gpiod
 import spidev
 import time
 from gpiozero import LED
+import pygame
+import sys
 
 class SpiToTeensy:
     def __init__(self, cs_pin, bus, device):
@@ -19,15 +21,17 @@ class SpiToTeensy:
         self.telegram_message_8_bit = []
         self.telegram_message_full_size = []
         self.telegram_inbound = []
-        self.telegram_parsed = [0,0,0,0,0,0,0,0]
-        self.cs_pin=cs_pin
-        
+        self.telegram_parsed = [0, 0, 0, 0, 0, 0, 0, 0]
+        self.cs_pin = cs_pin
+
     def int32(self, val):
-        val=val & 0xffffffff
+        val = val & 0xffffffff
         return (val ^ 0x80000000) - 0x80000000
+
     def int16(self, val):
-        val=val & 0xffff
-        return (val ^ 0x8000) - 0x8000       
+        val = val & 0xffff
+        return (val ^ 0x8000) - 0x8000
+
     def open_spi(self):
         self.spi.open(self.bus, self.device)
         self.spi.max_speed_hz = 50000
@@ -64,20 +68,23 @@ class SpiToTeensy:
         self.spi.writebytes(self.telegram_message_8_bit)
         self.telegram_inbound = self.spi.readbytes(20)
         del self.telegram_inbound[:4]
-        self.telegram_parsed[0]=self.int16((self.telegram_inbound[0]<<8)+self.telegram_inbound[1])
-        self.telegram_parsed[1]=self.int32((self.telegram_inbound[2]<<8)+self.telegram_inbound[3]+(self.telegram_inbound[4]<<24)+(self.telegram_inbound[5]<<16))
-        self.telegram_parsed[2]=self.int32((self.telegram_inbound[6]<<8)+self.telegram_inbound[7]+(self.telegram_inbound[8]<<24)+(self.telegram_inbound[9]<<16))
-        self.telegram_parsed[3]=self.int16((self.telegram_inbound[10]<<8)+self.telegram_inbound[11])
-        self.telegram_parsed[4]=self.int16((self.telegram_inbound[12]<<8)+self.telegram_inbound[13])
-        self.telegram_parsed[5]=self.int16((self.telegram_inbound[14]<<8)+self.telegram_inbound[15])
-        print(f"{self.telegram_parsed}" , self.cs_pin)
-#        print(self.telegram_inbound, f"slave on pin {self.ChipSelectPin}, motor {motor}")
+        self.telegram_parsed[0] = self.int16((self.telegram_inbound[0] << 8) + self.telegram_inbound[1])
+        self.telegram_parsed[1] = self.int32(
+            (self.telegram_inbound[2] << 8) + self.telegram_inbound[3] + (self.telegram_inbound[4] << 24) + (
+                        self.telegram_inbound[5] << 16))
+        self.telegram_parsed[2] = self.int32(
+            (self.telegram_inbound[6] << 8) + self.telegram_inbound[7] + (self.telegram_inbound[8] << 24) + (
+                        self.telegram_inbound[9] << 16))
+        self.telegram_parsed[3] = self.int16((self.telegram_inbound[10] << 8) + self.telegram_inbound[11])
+        self.telegram_parsed[4] = self.int16((self.telegram_inbound[12] << 8) + self.telegram_inbound[13])
+        self.telegram_parsed[5] = self.int16((self.telegram_inbound[14] << 8) + self.telegram_inbound[15])
+        print(f"{self.telegram_parsed}", self.cs_pin)
+        #        print(self.telegram_inbound, f"slave on pin {self.ChipSelectPin}, motor {motor}")
         self.ChipSelectPin.on()
-
-
 
     def close_spi(self):
         self.spi.close()
+
 
 class Motor:
     def __init__(self, motor, full_rev_step, SPI_controller):
@@ -102,8 +109,7 @@ class Motor:
         )
         self.ResetInput()
         self.SPI_controller.close_spi()
-        
-        
+
     def HomeMotor(self):
         self.SPI_controller.open_spi()
         self.SPI_controller.SPI_send(
@@ -111,10 +117,10 @@ class Motor:
             speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare,
             step=self.motor_step
         )
-        
-        
+
         self.ResetInput()
         self.SPI_controller.close_spi()
+
     def WorkOffsetMotor(self):
         self.SPI_controller.open_spi()
         self.SPI_controller.SPI_send(
@@ -122,7 +128,7 @@ class Motor:
             speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare,
             step=self.motor_step
         )
-        
+
         self.ResetInput()
         self.SPI_controller.close_spi()
 
@@ -134,9 +140,8 @@ class Motor:
             speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare,
             step=self.motor_step
         )
-        
-        self.SPI_controller.close_spi()
 
+        self.SPI_controller.close_spi()
 
     def ResetInput(self):
         self.motor_spare = 0
@@ -150,56 +155,186 @@ class Motor:
         self.motor_speed = speed
         self.motor_ramp = ramp
         self.motor_step_degree = abs(degree)
-        self.motor_step = (self.motor_full_rev_step/360)*self.motor_step_degree
+        self.motor_step = (self.motor_full_rev_step / 360) * self.motor_step_degree
         self.motor_direction = 1 if degree > 0 else 0
+
 
 # Example of using the class
 if __name__ == "__main__":
 
     controller1 = SpiToTeensy(cs_pin=24, bus=0, device=0)
-    #90deg = 62000 steps
+    # 90deg = 62000 steps
     MotorKnuckle = Motor(0, 248000, SPI_controller=controller1)
-    #360deg = 68500 steps
+    # 360deg = 68500 steps
     SecondRotate = Motor(1, 68500, SPI_controller=controller1)
-    #90deg = 76000
-    MainArm = Motor(2, 304000, SPI_controller=controller1) 
+    # 90deg = 76000
+    MainArm = Motor(2, 304000, SPI_controller=controller1)
 
     controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
-    #360deg = 245000
+    # 360deg = 245000
     MainPivot = Motor(2, 245000, SPI_controller=controller2)
-    
-#     
-#     MotorKnuckle.SetInput(300,0, 100)
-#     MotorKnuckle.DriveMotor()
-#     SecondRotate.SetInput(200, 0, 100)
-#     SecondRotate.DriveMotor()
-#     MainArm.SetInput(300, 0, 100)
-#     MainArm.DriveMotor()
-#     MainPivot.SetInput(200, 0, 100)
-#     MainPivot.DriveMotor()
-    user_input=99
-    while(user_input!=0):
+
+    #
+    #     MotorKnuckle.SetInput(300,0, 100)
+    #     MotorKnuckle.DriveMotor()
+    #     SecondRotate.SetInput(200, 0, 100)
+    #     SecondRotate.DriveMotor()
+    #     MainArm.SetInput(300, 0, 100)
+    #     MainArm.DriveMotor()
+    #     MainPivot.SetInput(200, 0, 100)
+    #     MainPivot.DriveMotor()
+    user_input = 99
+    while (user_input != 0):
         user_input = int(input())
         if user_input == 1:
-            MotorKnuckle.SetInput(200,-0, 0)
-            #MotorKnuckle.DriveMotor()
+            MotorKnuckle.SetInput(200, -0, 0)
+            # MotorKnuckle.DriveMotor()
             SecondRotate.SetInput(500, -0, 0)
-            #SecondRotate.DriveMotor()
+            # SecondRotate.DriveMotor()
             MainArm.SetInput(200, -26, 0)
             MainArm.DriveMotor()
             MainPivot.SetInput(300, 20, 0)
-            #MainPivot.DriveMotor()
+            # MainPivot.DriveMotor()
         if user_input == 2:
-            #MotorKnuckle.WorkOffsetMotor()
-            #SecondRotate.WorkOffsetMotor()
+            # MotorKnuckle.WorkOffsetMotor()
+            # SecondRotate.WorkOffsetMotor()
             MainArm.WorkOffsetMotor()
-            #MainPivot.WorkOffsetMotor()
-
-
+            # MainPivot.WorkOffsetMotor()
 
         if user_input == 3:
-            #MotorKnuckle.HomeMotor()
-            #SecondRotate.HomeMotor()
+            # MotorKnuckle.HomeMotor()
+            # SecondRotate.HomeMotor()
             MainArm.HomeMotor()
-            #MainPivot.HomeMotor()
+            # MainPivot.HomeMotor()
+        if user_input == 4:
+            pygame.init()
+            display = pygame.display.set_mode((300, 300))
+            speed = 600
+            # Define a dictionary to store the event codes for each key
+            key_event_codes = {
+                # VERTICALS
+                pygame.K_q: 1,
+                pygame.K_a: 2,
 
+                pygame.K_w: 3,
+                pygame.K_s: 4,
+
+                pygame.K_e: 5,
+                pygame.K_d: 6,
+
+                pygame.K_r: 7,
+                pygame.K_f: 8,
+                # HORIZONTALS
+                pygame.K_z: 9,
+                pygame.K_x: 10,
+
+                pygame.K_c: 11,
+                pygame.K_v: 12,
+                # EXTRAS
+                pygame.K_t: 13,
+                pygame.K_g: 14,
+
+                pygame.K_b: 15,
+                pygame.K_n: 16
+            }
+
+            # List to store currently active EVENTCODEs
+            EVENTCODE = []
+
+            while True:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit()
+
+                    # Check for KEYDOWN events
+                    if event.type == pygame.KEYDOWN:
+                        if event.key in key_event_codes:
+                            code = key_event_codes[event.key]
+                            if code not in EVENTCODE:  # Add code only if it's not already in the list
+                                EVENTCODE.append(code)
+                            print(f"Key pressed: {pygame.key.name(event.key)}, EVENTCODE list: {EVENTCODE}")
+
+                    # Check for KEYUP events
+                    if event.type == pygame.KEYUP:
+                        if event.key in key_event_codes:
+                            code = key_event_codes[event.key]
+                            if code in EVENTCODE:  # Remove code if it's in the list
+                                EVENTCODE.remove(code)
+                            print(f"Key released: {pygame.key.name(event.key)}, EVENTCODE list: {EVENTCODE}")
+                # Check each pair with XOR-style logic (either one of the pair, but not both)
+
+                if (1 in EVENTCODE) ^ (2 in EVENTCODE):
+                    if 1 in EVENTCODE:
+                        MainArm.DriveMotor()
+                        MainArm.SetInput(300, 400, 0)
+                    elif 2 in EVENTCODE:
+                        MainArm.DriveMotor()
+                        MainArm.SetInput(300, -400, 0)
+
+                    # Pair: [3, 4]
+                if (3 in EVENTCODE) ^ (4 in EVENTCODE):
+                    if 3 in EVENTCODE:
+                        MotorKnuckle.DriveMotor()
+                        MotorKnuckle.SetInput(300, 400, 0)
+                    elif 4 in EVENTCODE:
+                        MotorKnuckle.DriveMotor()
+                        MotorKnuckle.SetInput(300, -400, 0)
+
+                    # Pair: [5, 6]
+                if (5 in EVENTCODE) ^ (6 in EVENTCODE):
+                    if 5 in EVENTCODE:
+                    # MainArm.DriveMotor()
+                    # MainArm.SetInput(300, 400, 0)
+                    elif 6 in EVENTCODE:
+                # MainArm.DriveMotor()
+                # MainArm.SetInput(300, 400, 0)
+
+                # Pair: [7, 8]
+                if (7 in EVENTCODE) ^ (8 in EVENTCODE):
+                    if 7 in EVENTCODE:
+                    # MainArm.DriveMotor()
+                    # MainArm.SetInput(300, 400, 0)
+                    elif 8 in EVENTCODE:
+                # MainArm.DriveMotor()
+                # MainArm.SetInput(300, 400, 0)
+
+                # Pair: [9, 10]
+                if (9 in EVENTCODE) ^ (10 in EVENTCODE):
+                    if 9 in EVENTCODE:
+                        MainPivot.DriveMotor()
+                        MainPivot.SetInput(300, 400, 0)
+                    elif 10 in EVENTCODE:
+                        MainPivot.DriveMotor()
+                        MainPivot.SetInput(300, 400, 0)
+
+                    # Pair: [11, 12]
+                if (11 in EVENTCODE) ^ (12 in EVENTCODE):
+                    if 11 in EVENTCODE:
+                        SecondRotate.DriveMotor()
+                        SecondRotate.SetInput(350, 22, 1)
+                    elif 12 in EVENTCODE:
+                        SecondRotate.DriveMotor()
+                        SecondRotate.SetInput(370, 24, 1)
+
+                    # Pair: [13, 14]
+                if (13 in EVENTCODE) ^ (14 in EVENTCODE):
+                    if 13 in EVENTCODE:
+                    # MainArm.DriveMotor()
+                    # MainPivot.SetInput(450, 27, 0)
+                    elif 14 in EVENTCODE:
+                # MainArm.DriveMotor()
+                # MainPivot.SetInput(470, 29, 0)
+
+                # Pair: [15, 16]
+                if (15 in EVENTCODE) ^ (16 in EVENTCODE):
+                    if 15 in EVENTCODE:
+                        speed = speed + 1
+                        time.sleep(.02)
+                        print(speed)
+                    elif 16 in EVENTCODE:
+                        speed = speed - 1
+                        time.sleep(.02)
+                        print(speed)
+                if (15 in EVENTCODE) & (16 in EVENTCODE):
+                    speed = int(input("ENTER SPEED"))
