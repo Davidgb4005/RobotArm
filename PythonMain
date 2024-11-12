@@ -266,65 +266,69 @@ if __name__ == "__main__":
 
                 if (1 in EVENTCODE) ^ (2 in EVENTCODE):
                     if 1 in EVENTCODE:
+                        MainArm.SetInput(speed, 400, 0)
                         MainArm.DriveMotor()
-                        MainArm.SetInput(300, 400, 0)
                     elif 2 in EVENTCODE:
+                        MainArm.SetInput(speed, -400, 0)
                         MainArm.DriveMotor()
-                        MainArm.SetInput(300, -400, 0)
+
 
                     # Pair: [3, 4]
                 if (3 in EVENTCODE) ^ (4 in EVENTCODE):
                     if 3 in EVENTCODE:
+                        MotorKnuckle.SetInput(speed, 400, 0)
                         MotorKnuckle.DriveMotor()
-                        MotorKnuckle.SetInput(300, 400, 0)
                     elif 4 in EVENTCODE:
+                        MotorKnuckle.SetInput(speed, -400, 0)
                         MotorKnuckle.DriveMotor()
-                        MotorKnuckle.SetInput(300, -400, 0)
 
                     # Pair: [5, 6]
                 if (5 in EVENTCODE) ^ (6 in EVENTCODE):
                     if 5 in EVENTCODE:
-                    # MainArm.DriveMotor()
-                    # MainArm.SetInput(300, 400, 0)
+                        MainArm.SetInput(speed, 400, 0)
+                        MainArm.DriveMotor()
+                        
                     elif 6 in EVENTCODE:
-                # MainArm.DriveMotor()
-                # MainArm.SetInput(300, 400, 0)
+                        MainArm.SetInput(speed, -400, 0)
+                        MainArm.DriveMotor()
+                        
 
                 # Pair: [7, 8]
                 if (7 in EVENTCODE) ^ (8 in EVENTCODE):
                     if 7 in EVENTCODE:
-                    # MainArm.DriveMotor()
-                    # MainArm.SetInput(300, 400, 0)
+                        MainArm.SetInput(speed, 400, 0)
+                        MainArm.DriveMotor()
                     elif 8 in EVENTCODE:
-                # MainArm.DriveMotor()
-                # MainArm.SetInput(300, 400, 0)
+                        MainArm.SetInput(speed, -400, 0)
+                        MainArm.DriveMotor()
 
                 # Pair: [9, 10]
                 if (9 in EVENTCODE) ^ (10 in EVENTCODE):
                     if 9 in EVENTCODE:
+                        MainPivot.SetInput(speed, -400, 0)
                         MainPivot.DriveMotor()
-                        MainPivot.SetInput(300, 400, 0)
                     elif 10 in EVENTCODE:
+                        MainPivot.SetInput(speed, -400, 0)
                         MainPivot.DriveMotor()
-                        MainPivot.SetInput(300, 400, 0)
 
                     # Pair: [11, 12]
                 if (11 in EVENTCODE) ^ (12 in EVENTCODE):
                     if 11 in EVENTCODE:
+                        SecondRotate.SetInput(speed, 400, 0)
                         SecondRotate.DriveMotor()
-                        SecondRotate.SetInput(350, 22, 1)
                     elif 12 in EVENTCODE:
+                        SecondRotate.SetInput(speed, -400, 0)
                         SecondRotate.DriveMotor()
-                        SecondRotate.SetInput(370, 24, 1)
 
                     # Pair: [13, 14]
                 if (13 in EVENTCODE) ^ (14 in EVENTCODE):
                     if 13 in EVENTCODE:
-                    # MainArm.DriveMotor()
-                    # MainPivot.SetInput(450, 27, 0)
+                        MainPivot.SetInput(speed, 400, 0)
+                        MainArm.DriveMotor()
+                        
                     elif 14 in EVENTCODE:
-                # MainArm.DriveMotor()
-                # MainPivot.SetInput(470, 29, 0)
+                        MainPivot.SetInput(speed, -400, 0)
+                        MainArm.DriveMotor()
 
                 # Pair: [15, 16]
                 if (15 in EVENTCODE) ^ (16 in EVENTCODE):
