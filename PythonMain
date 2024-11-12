@@ -1,11 +1,11 @@
 import gpiod
 import spidev
 import time
+from gpiozero import LED
 
 class SpiToTeensy:
     def __init__(self, cs_pin, bus, device):
-        self.ChipSelectPin = cs_pin
-        self.ChipSelectIO = gpiod.Chip('gpiochip4').get_line(self.ChipSelectPin)
+        self.ChipSelectPin = LED(cs_pin)
         self.start_bit = 57005
         self.slave_id = 4660
         self.telegram_length = 9
@@ -19,18 +19,25 @@ class SpiToTeensy:
         self.telegram_message_8_bit = []
         self.telegram_message_full_size = []
         self.telegram_inbound = []
-        self.ChipSelectIO.request(consumer='cs_pin', type=gpiod.LINE_REQ_DIR_OUT)
-
+        self.telegram_parsed = [0,0,0,0,0,0,0,0]
+        self.cs_pin=cs_pin
+        
+    def int32(self, val):
+        val=val & 0xffffffff
+        return (val ^ 0x80000000) - 0x80000000
+    def int16(self, val):
+        val=val & 0xffff
+        return (val ^ 0x8000) - 0x8000       
     def open_spi(self):
         self.spi.open(self.bus, self.device)
-        self.spi.max_speed_hz = 2000000
+        self.spi.max_speed_hz = 50000
         self.spi.mode = 0
 
     def SPI_send(self, command, motor, step, direction, speed, ramp, spare):
         self.message_bit[0] = command
         self.message_bit[1] = motor
         self.message_bit[2] = int(step)
-        self.message_bit[3] = int(step >> 16)
+        self.message_bit[3] = int(step) >> 16
         self.message_bit[4] = direction
         self.message_bit[5] = speed
         self.message_bit[6] = ramp
@@ -53,15 +60,21 @@ class SpiToTeensy:
             self.telegram_message_8_bit.append(value >> 8)
             self.telegram_message_8_bit.append(value & 0xFF)
 
-        self.ChipSelectIO.set_value(0)
+        self.ChipSelectPin.off()
         self.spi.writebytes(self.telegram_message_8_bit)
         self.telegram_inbound = self.spi.readbytes(20)
         del self.telegram_inbound[:4]
-        print(self.telegram_inbound, f"slave on pin {self.ChipSelectPin}, motor {motor}")
-        self.ChipSelectIO.set_value(1)
+        self.telegram_parsed[0]=self.int16((self.telegram_inbound[0]<<8)+self.telegram_inbound[1])
+        self.telegram_parsed[1]=self.int32((self.telegram_inbound[2]<<8)+self.telegram_inbound[3]+(self.telegram_inbound[4]<<24)+(self.telegram_inbound[5]<<16))
+        self.telegram_parsed[2]=self.int32((self.telegram_inbound[6]<<8)+self.telegram_inbound[7]+(self.telegram_inbound[8]<<24)+(self.telegram_inbound[9]<<16))
+        self.telegram_parsed[3]=self.int16((self.telegram_inbound[10]<<8)+self.telegram_inbound[11])
+        self.telegram_parsed[4]=self.int16((self.telegram_inbound[12]<<8)+self.telegram_inbound[13])
+        self.telegram_parsed[5]=self.int16((self.telegram_inbound[14]<<8)+self.telegram_inbound[15])
+        print(f"{self.telegram_parsed}" , self.cs_pin)
+#        print(self.telegram_inbound, f"slave on pin {self.ChipSelectPin}, motor {motor}")
+        self.ChipSelectPin.on()
 
-        self.close_spi()
-        time.sleep(0.1)  # Optional: short delay to avoid overlapping SPI operations
+
 
     def close_spi(self):
         self.spi.close()
@@ -74,56 +87,119 @@ class Motor:
         self.motor_speed = 0
         self.motor_ramp = 0
         self.motor_step = 0
+        self.motor_step_degree = 0
+        self.motor_full_rev_step = full_rev_step
         self.motor_direction = 0
         self.motor = motor
         self.SPI_controller = SPI_controller
 
     def DriveMotor(self):
+        self.SPI_controller.open_spi()
         self.SPI_controller.SPI_send(
             command=12, motor=self.motor, direction=self.motor_direction,
             speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare,
             step=self.motor_step
         )
         self.ResetInput()
+        self.SPI_controller.close_spi()
+        
+        
+    def HomeMotor(self):
+        self.SPI_controller.open_spi()
+        self.SPI_controller.SPI_send(
+            command=1, motor=self.motor, direction=self.motor_direction,
+            speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare,
+            step=self.motor_step
+        )
+        
+        
+        self.ResetInput()
+        self.SPI_controller.close_spi()
+    def WorkOffsetMotor(self):
+        self.SPI_controller.open_spi()
+        self.SPI_controller.SPI_send(
+            command=2, motor=self.motor, direction=self.motor_direction,
+            speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare,
+            step=self.motor_step
+        )
+        
+        self.ResetInput()
+        self.SPI_controller.close_spi()
+
+    def StatusMotor(self):
+        self.SPI_controller.open_spi()
+        self.ResetInput()
+        self.SPI_controller.SPI_send(
+            command=8, motor=self.motor, direction=self.motor_direction,
+            speed=self.motor_speed, ramp=self.motor_ramp, spare=self.motor_spare,
+            step=self.motor_step
+        )
+        
+        self.SPI_controller.close_spi()
+
 
     def ResetInput(self):
         self.motor_spare = 0
         self.motor_speed = 0
         self.motor_ramp = 0
         self.motor_step = 0
+        self.motor_step_degree = 0
         self.motor_direction = 0
 
-    def SetInput(self, speed, step, ramp):
+    def SetInput(self, speed, degree, ramp):
         self.motor_speed = speed
         self.motor_ramp = ramp
-        self.motor_step = abs(step)
-        self.motor_direction = 0 if step > 0 else 1
+        self.motor_step_degree = abs(degree)
+        self.motor_step = (self.motor_full_rev_step/360)*self.motor_step_degree
+        self.motor_direction = 1 if degree > 0 else 0
 
 # Example of using the class
 if __name__ == "__main__":
-    # Instantiate one SpiToTeensy controller
-    controller = SpiToTeensy(cs_pin=24, bus=0, device=0)
 
-    # Create Motor instances with the same SPI controller but different CS pins
-    MotorKnuckle = Motor(0, 200000, SPI_controller=controller)
-    SecondRotate = Motor(1, 200000, SPI_controller=controller)
-    MainPivot = Motor(2, 200000, SPI_controller=controller)
+    controller1 = SpiToTeensy(cs_pin=24, bus=0, device=0)
+    #90deg = 62000 steps
+    MotorKnuckle = Motor(0, 248000, SPI_controller=controller1)
+    #360deg = 68500 steps
+    SecondRotate = Motor(1, 68500, SPI_controller=controller1)
+    #90deg = 76000
+    MainArm = Motor(2, 304000, SPI_controller=controller1) 
 
-    # First set of commands for MotorKnuckle and SecondRotate
-    controller.ChipSelectPin = 24
-    controller.open_spi()
-    MotorKnuckle.SetInput(200, 5000, 100)
-    MotorKnuckle.DriveMotor()
+    controller2 = SpiToTeensy(cs_pin=23, bus=0, device=1)
+    #360deg = 245000
+    MainPivot = Motor(2, 245000, SPI_controller=controller2)
+    
+#     
+#     MotorKnuckle.SetInput(300,0, 100)
+#     MotorKnuckle.DriveMotor()
+#     SecondRotate.SetInput(200, 0, 100)
+#     SecondRotate.DriveMotor()
+#     MainArm.SetInput(300, 0, 100)
+#     MainArm.DriveMotor()
+#     MainPivot.SetInput(200, 0, 100)
+#     MainPivot.DriveMotor()
+    user_input=99
+    while(user_input!=0):
+        user_input = int(input())
+        if user_input == 1:
+            MotorKnuckle.SetInput(200,-0, 0)
+            #MotorKnuckle.DriveMotor()
+            SecondRotate.SetInput(500, -0, 0)
+            #SecondRotate.DriveMotor()
+            MainArm.SetInput(200, -26, 0)
+            MainArm.DriveMotor()
+            MainPivot.SetInput(300, 20, 0)
+            #MainPivot.DriveMotor()
+        if user_input == 2:
+            #MotorKnuckle.WorkOffsetMotor()
+            #SecondRotate.WorkOffsetMotor()
+            MainArm.WorkOffsetMotor()
+            #MainPivot.WorkOffsetMotor()
 
-    SecondRotate.SetInput(200, 3000, 100)
-    SecondRotate.DriveMotor()
-    controller.close_spi()
 
-    # Second set of commands for MainPivot
-    controller.ChipSelectPin = 23
-    controller.open_spi()
-    MainPivot.SetInput(200, -30000, 100)
-    MainPivot.DriveMotor()
-    controller.close_spi()
 
+        if user_input == 3:
+            #MotorKnuckle.HomeMotor()
+            #SecondRotate.HomeMotor()
+            MainArm.HomeMotor()
+            #MainPivot.HomeMotor()
 
